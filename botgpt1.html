@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Autonomous AI Agent with Mistral AI</title>
+  <style>
+    /* Base Styles */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+      color: #333;
+    }
+    header {
+      background: #4CAF50;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    main {
+      padding: 20px;
+      max-width: 1200px;
+      margin: auto;
+    }
+    .input-section {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"] {
+      width: 80%;
+      padding: 10px;
+      margin-right: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #loader {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin: 20px 0;
+    }
+    #log {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 150px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    /* Preview and Code Editor */
+    #previewContainer, #codeContainer {
+      border: 1px solid #ccc;
+      background: #fff;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    iframe {
+      width: 100%;
+      height: 500px;
+      border: none;
+    }
+    textarea {
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+      padding: 10px;
+      resize: none;
+    }
+    /* Modal Popup */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+      background: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 500px;
+      border-radius: 8px;
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover, .close:focus {
+      color: black;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Autonomous AI Agent with Mistral AI</h1>
+    </header>
+    <main>
+      <div class="input-section">
+        <label for="goalInput">Enter your project goal:</label>
+        <input type="text" id="goalInput" placeholder="E.g. I want to make money online without investment">
+        <button id="startButton">Start</button>
+        <button id="stopButton" disabled>Stop</button>
+      </div>
+      <div id="loader" style="display: none;">Loading...</div>
+      <div id="log"></div>
+      <div id="previewContainer">
+        <h2>Live Code Preview</h2>
+        <iframe id="livePreview" sandbox="allow-scripts"></iframe>
+      </div>
+      <div id="codeContainer">
+        <h2>Generated Code</h2>
+        <textarea id="generatedCode" readonly></textarea>
+      </div>
+    </main>
+  </div>
+  
+  <!-- Modal Popup -->
+  <div id="popup" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <p id="popupMessage"></p>
+    </div>
+  </div>
+  
+  <script>
+    // API configuration with CORS proxy
+    const API_KEY = "j4h3leTe769ILXBLzwsMkrKEzWqZjOTj";
+    const PROXY_URL = "https://cors-anywhere.herokuapp.com/";
+    const API_ENDPOINT = "https://api.mistral.ai/v1/generate";
+    const API_URL = PROXY_URL + API_ENDPOINT;
+
+    let stopRequested = false;
+    
+    // UI Elements
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+    const loader = document.getElementById('loader');
+    const logDiv = document.getElementById('log');
+    const popup = document.getElementById('popup');
+    const popupMessage = document.getElementById('popupMessage');
+    const popupClose = document.querySelector('.close');
+    
+    // Modal popup behavior
+    popupClose.onclick = function() {
+      popup.style.display = "none";
+    }
+    window.onclick = function(event) {
+      if (event.target == popup) {
+        popup.style.display = "none";
+      }
+    }
+    
+    function showLoader(message) {
+      loader.style.display = "block";
+      loader.textContent = message;
+    }
+    
+    function hideLoader() {
+      loader.style.display = "none";
+    }
+    
+    function log(message) {
+      const p = document.createElement('p');
+      p.textContent = message;
+      logDiv.appendChild(p);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    function showPopup(message) {
+      popupMessage.textContent = message;
+      popup.style.display = "block";
+    }
+    
+    // Enhanced API call function with proxy handling
+    async function callMistralAPI(prompt) {
+      showLoader("Contacting Mistral AI...");
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + API_KEY,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            max_tokens: 1500,
+            temperature: 0.7
+          })
+        });
+
+        if (response.status === 403) {
+          throw new Error('CORS proxy access denied - visit https://cors-anywhere.herokuapp.com/corsdemo to request temporary access');
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`API error: ${errorText || response.statusText}`);
+        }
+
+        const data = await response.json();
+        hideLoader();
+        return data.choices[0].text.trim();
+      } catch (error) {
+        hideLoader();
+        console.error('API Error:', error);
+        throw new Error(`Failed to connect: ${error.message}`);
+      }
+    }
+    
+    // Generate a detailed outline for the project goal
+    async function generateOutline(goal) {
+      const prompt = `Generate a detailed project outline for: "${goal}". Provide a numbered list of main tasks only. Each task should be concise and actionable.`;
+      log("Generating outline...");
+      return await callMistralAPI(prompt);
+    }
+    
+    // Parse the outline into an array of tasks
+    function parseOutline(outline) {
+      log("Parsing outline...");
+      return outline.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.match(/^\d+\./))
+        .map(line => line.replace(/^\d+\.\s*/, ''));
+    }
+    
+    // Generate code for a specific task
+    async function generateCodeForTask(task) {
+      const prompt = `Generate complete HTML/CSS/JS code for: "${task}". Requirements:
+- Single HTML file
+- Modern, responsive design
+- Include loading animations
+- Add error handling
+- Include comments
+- Valid, production-ready code`;
+      log("Generating code: " + task);
+      return await callMistralAPI(prompt);
+    }
+    
+    // Update the live preview and code editor
+    function updatePreview(code) {
+      document.getElementById('livePreview').srcdoc = code;
+      document.getElementById('generatedCode').value = code;
+    }
+    
+    // Enhanced code testing with timeout and error handling
+    function testCode(code) {
+      return new Promise((resolve) => {
+        const testIframe = document.createElement('iframe');
+        testIframe.style.display = 'none';
+        document.body.appendChild(testIframe);
+        
+        let errorOccurred = false;
+        const errorHandler = (message, source, lineno, colno, error) => {
+          errorOccurred = true;
+          resolve({ 
+            error: `Line ${lineno}: ${message}`,
+            details: error?.stack || ''
+          });
+        };
+
+        testIframe.contentWindow.onerror = errorHandler;
+        
+        const timeoutId = setTimeout(() => {
+          resolve({ error: 'Execution timed out (3 seconds)' });
+          document.body.removeChild(testIframe);
+        }, 3000);
+
+        testIframe.onload = function() {
+          clearTimeout(timeoutId);
+          setTimeout(() => {
+            document.body.removeChild(testIframe);
+            resolve(errorOccurred ? {} : { success: true });
+          }, 500);
+        };
+
+        try {
+          testIframe.srcdoc = code;
+        } catch (e) {
+          resolve({ error: `Invalid code: ${e.message}` });
+        }
+      });
+    }
+    
+    // Main agent workflow controller
+    async function runAgent() {
+      stopRequested = false;
+      stopButton.disabled = false;
+      logDiv.innerHTML = "";
+      const goal = document.getElementById('goalInput').value.trim();
+      
+      if (!goal) {
+        showPopup("Please enter a project goal");
+        return;
+      }
+
+      try {
+        const outline = await generateOutline(goal);
+        log("Outline:\n" + outline);
+        const tasks = parseOutline(outline);
+        log("Tasks identified: " + tasks.length);
+
+        for (let i = 0; i < tasks.length; i++) {
+          if (stopRequested) break;
+          log(`\nProcessing Task ${i+1}/${tasks.length}: ${tasks[i]}`);
+          
+          let code, result;
+          let attempts = 0;
+          let success = false;
+
+          while (attempts < 3 && !success && !stopRequested) {
+            try {
+              code = await generateCodeForTask(tasks[i]);
+              updatePreview(code);
+              log(`Testing code (attempt ${attempts+1})...`);
+              result = await testCode(code);
+              
+              if (result.success) {
+                success = true;
+                log("Code passed tests!");
+              } else {
+                throw new Error(result.error || 'Unknown code error');
+              }
+            } catch (error) {
+              attempts++;
+              log(`Error: ${error.message}. Retrying...`);
+              if (attempts < 3) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+          }
+
+          if (!success) {
+            throw new Error(`Failed to complete task after 3 attempts: ${tasks[i]}`);
+          }
+        }
+
+        if (!stopRequested) {
+          log("\nAll tasks completed successfully!");
+          showPopup("Project completed successfully!");
+        }
+      } catch (error) {
+        log("\nError: " + error.message);
+        showPopup("Error: " + error.message);
+      }
+      stopButton.disabled = true;
+    }
+    
+    // Event listeners
+    startButton.addEventListener('click', runAgent);
+    stopButton.addEventListener('click', () => {
+      stopRequested = true;
+      log("Process stopped by user");
+      stopButton.disabled = true;
+    });
+  </script>
+</body>
+</html>
